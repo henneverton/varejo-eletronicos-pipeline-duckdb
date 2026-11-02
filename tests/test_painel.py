@@ -23,6 +23,13 @@ def test_usd_curto_mi_e_mil():
     assert painel.usd_curto(950) == "US$ 950"
 
 
+def test_usd_eixo_sem_casas_quando_redondo():
+    assert painel.usd_eixo(5_000_000) == "US$ 5 mi"
+    assert painel.usd_eixo(2_500_000) == "US$ 2,5 mi"
+    assert painel.usd_eixo(500_000) == "US$ 500 mil"
+    assert painel.usd_eixo(0) == "US$ 0"
+
+
 def test_pct_e_numero():
     assert painel.pct(93.2) == "93,2%"
     assert painel.pct(0.63, casas=2) == "0,63%"
@@ -128,6 +135,8 @@ def test_grafico_01_destaca_melhor_ano_e_marca_parcial_e_nd():
     assert list(barra.x) == ["2016", "2017", "2018 (parcial)"]
     assert list(barra.marker.color) == [painel.ROXO_ESCURO, painel.PRINCIPAL, painel.ROXO_ESCURO]
     assert "n/d" in barra.text[0] and "+200,0%" in barra.text[1]
+    # anos em texto não podem virar eixo numérico (o "2021 (parcial)" sumiria)
+    assert fig.layout.xaxis.type == "category"
 
 
 def test_grafico_02_uma_serie_por_ano_com_2021_tracejada_e_marca_extremos():
@@ -165,9 +174,7 @@ def test_grafico_03_ordenado_do_maior_para_o_menor():
     assert fig.layout.yaxis.autorange == "reversed"
 
 
-def test_grafico_04_segue_ordem_do_03_e_destaca_extremos():
-    ordem = painel.ordem_categorias(df_categorias())
-    assert ordem == ["B", "C", "A"]
+def test_grafico_04_ordenado_da_maior_para_a_menor_margem_e_destaca_extremos():
     margem = pd.DataFrame(
         {
             "categoria": ["A", "B", "C"],
@@ -176,9 +183,10 @@ def test_grafico_04_segue_ordem_do_03_e_destaca_extremos():
             "margem_pct": [50.0, 60.0, 55.0],
         }
     )
-    fig = painel.grafico_04(margem, ordem)
-    assert list(fig.data[0].y) == ["B", "C", "A"]
+    fig = painel.grafico_04(margem)
+    assert list(fig.data[0].y) == ["B", "C", "A"]  # 60,0 > 55,0 > 50,0
     assert list(fig.data[0].marker.color) == [painel.PRINCIPAL, painel.NEUTRO, painel.CIANO]
+    assert fig.layout.yaxis.autorange == "reversed"  # maior em cima
 
 
 def test_grafico_05_tem_duas_linhas_de_referencia():
@@ -220,6 +228,7 @@ def test_grafico_08_separa_total_dos_anos():
     assert sorted(total.data[0].values) == [20.0, 80.0]
     evolucao = painel.grafico_08_evolucao(painel_df)
     assert evolucao.layout.barnorm == "percent"
+    assert evolucao.layout.xaxis.type == "category"
     for barra in evolucao.data:
         assert list(barra.x) == ["2016", "2017"]
 
@@ -379,3 +388,24 @@ def test_marts_novos_leem_so_refined():
         texto = (PASTA_SQL / nome).read_text(encoding="utf-8")
         assert "marts." not in texto.replace("sql/marts", "")
         assert "refined." in texto
+
+
+def test_marcas_do_eixo_logaritmico_nao_se_amontoam():
+    marcas = painel._marcas_log(120_000, 9_900_000)
+    assert marcas == [100_000, 300_000, 1_000_000, 3_000_000, 10_000_000]
+
+
+def test_grafico_05_eixo_logaritmico_e_grafico_04_sem_zero():
+    df = pd.DataFrame(
+        {
+            "subcategoria": ["s1", "s2"], "categoria": ["c", "c"],
+            "receita_usd": [120_000.0, 9_900_000.0], "margem_pct": [55.0, 60.0], "itens": [10, 30],
+        }
+    )
+    ref = pd.DataFrame({"mediana_receita_usd": [1_000_000.0], "margem_global_pct": [58.0]})
+    assert painel.grafico_05(df, ref).layout.xaxis.type == "log"
+    margem = pd.DataFrame(
+        {"categoria": ["A", "B"], "receita_usd": [1.0, 2.0], "lucro_usd": [0.5, 1.2], "margem_pct": [54.7, 61.0]}
+    )
+    base = painel.grafico_04(margem).layout.xaxis.range[0]
+    assert 0 < base < 54.7  # eixo começa abaixo do menor valor, mas não em zero

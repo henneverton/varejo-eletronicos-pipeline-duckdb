@@ -19,8 +19,10 @@ Regras e por que existem
    04·05·06 e linha 07·08·09·10. Os KPIs vêm de marts.kpis, sem variação (não há
    filtro de período). Motivo: a ordem conta a história Evolução → Rentabilidade
    → Produtos → Geografia → Canais → Eficiência → Clientes.
-5. Em 07 e 09 a lista/ranking fica abaixo da figura, não ao lado. Motivo: com
-   quatro cartões na mesma linha, a largura não comporta duas colunas em cada.
+5. Linhas 5 e 6 com dois cartões cada (07·08 e 09·10), para o mapa e a dispersão
+   ficarem ao lado do ranking e da lista. Motivo: com quatro cartões na mesma
+   linha a largura não comportava duas colunas em cada, e a linha ficava com
+   vazios desiguais.
 """
 
 import streamlit as st
@@ -32,11 +34,14 @@ st.set_page_config(page_title="Dashboard de Vendas", layout="wide")
 CSS = f"""
 <style>
 .stApp {{ background: {painel.FUNDO}; }}
-.block-container {{ padding-top: 1.6rem; max-width: 100%; }}
-[data-testid="stVerticalBlockBorderWrapper"] {{
+.block-container {{ padding-top: 1.6rem; padding-bottom: 1rem; max-width: 100%; }}
+[class*="st-key-cartao-"] {{
     background: {painel.CARTAO}; border: 1px solid #2A3560 !important;
-    border-radius: 12px; box-shadow: 0 4px 18px rgba(0,0,0,.25);
+    border-radius: 12px; box-shadow: 0 4px 18px rgba(0,0,0,.25); height: 100%;
 }}
+/* cartões da mesma linha com a mesma altura */
+[data-testid="stLayoutWrapper"]:has(> [class*="st-key-cartao-"]) {{ flex: 1 1 auto; }}
+[data-testid="stAppDeployButton"] {{ display: none; }}
 [data-testid="stMetric"] {{
     background: {painel.CARTAO}; border: 1px solid #2A3560; border-radius: 12px;
     padding: 14px 18px; box-shadow: 0 0 18px rgba(145,73,245,.18);
@@ -55,6 +60,11 @@ CONFIG_GRAFICO = {"displayModeBar": False}
 
 def plotar(fig, chave):
     st.plotly_chart(fig, width="stretch", config=CONFIG_GRAFICO, key=chave)
+
+
+def cartao(numero):
+    """Cartão com borda; a chave vira a classe CSS st-key-cartao-NN (altura igual na linha)."""
+    return st.container(border=True, key=f"cartao-{numero}")
 
 
 def cabecalho_cartao(titulo, pergunta):
@@ -98,7 +108,10 @@ dados = carregar()
 topo_titulo, topo_botao = st.columns([6, 1], vertical_alignment="center")
 with topo_titulo:
     st.title("Dashboard de Vendas")
-    st.caption("Análise de Receita, Margem, Canais, Lojas e Clientes.")
+    st.caption(
+        "Análise de Receita, Margem, Canais, Lojas e Clientes. "
+        "Período dos dados: 01/01/2016 a 20/02/2021 (2021 parcial)."
+    )
 with topo_botao:
     if st.button("Recarregar dados", width="stretch"):
         st.cache_data.clear()
@@ -108,88 +121,100 @@ with topo_botao:
 kpi = dados["kpis"].iloc[0]
 k1, k2, k3, k4 = st.columns(4)
 k1.metric(
-    "◉ Receita Total",
+    ":material/payments: Receita Total",
     painel.usd_curto(kpi["receita_usd"]),
     help="Quantidade × preço de tabela em US$, período inteiro.",
 )
 k2.metric(
-    "◐ Margem Média",
+    ":material/percent: Margem Média",
     painel.pct(kpi["margem_pct"]),
     help="Ponderada: lucro total ÷ receita total (nunca média de margens).",
 )
 k3.metric(
-    "▦ Total de Itens",
+    ":material/inventory_2: Total de Itens",
     painel.numero(kpi["itens"]),
     help="Soma das quantidades vendidas.",
 )
 k4.metric(
-    "◍ Clientes",
+    ":material/group: Clientes",
     painel.numero(kpi["clientes"]),
     help="Clientes distintos que compraram (os cadastrados sem compra não entram).",
 )
 
 # --- Linha 3: 01 · 02 · 03 -------------------------------------------------
 c1, c2, c3 = st.columns(3)
-with c1, st.container(border=True):
+with c1, cartao("01"):
     cabecalho_cartao("01 — Receita Anual", "Como a receita evoluiu e qual foi o melhor ano?")
     plotar(painel.grafico_01(dados["receita_anual"]), "g01")
-with c2, st.container(border=True):
+with c2, cartao("02"):
     cabecalho_cartao("02 — Receita Mensal e Sazonalidade", "Em quais meses se fatura mais e menos?")
     plotar(painel.grafico_02(dados["receita_mensal_sazonalidade"]), "g02")
-with c3, st.container(border=True):
+with c3, cartao("03"):
     cabecalho_cartao("03 — Receita por Categoria", "Quais categorias concentram a receita?")
     plotar(painel.grafico_03(dados["receita_por_categoria"]), "g03")
 
 # --- Linha 4: 04 · 05 · 06 -------------------------------------------------
 c4, c5, c6 = st.columns(3)
-with c4, st.container(border=True):
+with c4, cartao("04"):
     cabecalho_cartao("04 — Margem por Categoria", "Quais categorias são mais e menos rentáveis?")
-    ordem = painel.ordem_categorias(dados["receita_por_categoria"])
-    plotar(painel.grafico_04(dados["margem_por_categoria"], ordem), "g04")
-with c5, st.container(border=True):
+    plotar(painel.grafico_04(dados["margem_por_categoria"]), "g04")
+    nota("O eixo não começa em zero, para tornar visível a diferença entre as categorias.")
+with c5, cartao("05"):
     cabecalho_cartao(
         "05 — Receita × Margem por Subcategoria",
-        "Quais subcategorias vendem muito com pouca margem e quais são nichos rentáveis?",
+        "Quais vendem muito com pouca margem e quais são nichos?",
     )
     plotar(
         painel.grafico_05(dados["receita_x_margem_subcategoria"], dados["referencia_subcategorias"]),
         "g05",
     )
-with c6, st.container(border=True):
+with c6, cartao("06"):
     cabecalho_cartao("06 — Top 5 Marcas", "Quais marcas concentram as vendas?")
     plotar(painel.grafico_06(dados["top5_marcas"]), "g06")
 
-# --- Linha 5: 07 · 08 · 09 · 10 --------------------------------------------
-c7, c8, c9, c10 = st.columns([1.15, 1, 1.25, 1])
-with c7, st.container(border=True):
+# --- Linha 5: 07 · 08 ------------------------------------------------------
+c7, c8 = st.columns([1.55, 1])
+with c7, cartao("07"):
     cabecalho_cartao("07 — Receita por País", "Em quais países está concentrada a receita?")
-    plotar(painel.grafico_07(dados["receita_por_pais"]), "g07")
+    mapa, ranking = st.columns([1.7, 1])
+    with mapa:
+        plotar(painel.grafico_07(dados["receita_por_pais"], altura=360), "g07")
+    with ranking:
+        st.dataframe(painel.tabela_07(dados["receita_por_pais"]), hide_index=True, width="stretch")
     nota("Se o mapa não carregar (ele busca o mapa-base na internet), use o ranking.")
-    st.dataframe(painel.tabela_07(dados["receita_por_pais"]), hide_index=True, width="stretch")
-with c8, st.container(border=True):
+with c8, cartao("08"):
     cabecalho_cartao("08 — Online × Lojas Físicas", "Qual a participação de cada canal e como evolui?")
-    aba_total, aba_evolucao = st.tabs(["Total", "Evolução"])
-    with aba_total:
+    visao = st.segmented_control(
+        "Visão", ["Total", "Evolução"], default="Total", label_visibility="collapsed", key="visao08"
+    ) or "Total"
+    if visao == "Total":
         plotar(painel.grafico_08_total(dados["online_x_lojas_fisicas"]), "g08t")
-    with aba_evolucao:
+    else:
         plotar(painel.grafico_08_evolucao(dados["online_x_lojas_fisicas"]), "g08e")
-with c9, st.container(border=True):
-    cabecalho_cartao("09 — Desempenho das Lojas", "Lojas maiores vendem mais? Quais são as mais produtivas por m²?")
-    plotar(painel.grafico_09(dados["desempenho_das_lojas"], dados["tendencia_lojas"]), "g09")
-    esquerda, direita = st.columns(2)
-    with esquerda:
-        st.markdown("**Top 10** · US$ por m²")
-        st.dataframe(painel.lista_lojas(dados["desempenho_das_lojas"], "top"), hide_index=True, width="stretch")
-    with direita:
-        st.markdown("**Bottom 10** · US$ por m²")
-        st.dataframe(painel.lista_lojas(dados["desempenho_das_lojas"], "bottom"), hide_index=True, width="stretch")
+
+# --- Linha 6: 09 · 10 ------------------------------------------------------
+c9, c10 = st.columns([1.55, 1])
+with c9, cartao("09"):
+    cabecalho_cartao("09 — Desempenho das Lojas", "Lojas maiores vendem mais? Quais rendem mais por m²?")
+    dispersao, listas = st.columns([1.5, 1])
+    with dispersao:
+        plotar(painel.grafico_09(dados["desempenho_das_lojas"], dados["tendencia_lojas"], altura=400), "g09")
+    with listas:
+        lista = st.segmented_control(
+            "Lista", ["Top 10", "Bottom 10"], default="Top 10", label_visibility="collapsed", key="lista09"
+        ) or "Top 10"
+        st.dataframe(
+            painel.lista_lojas(dados["desempenho_das_lojas"], "top" if lista == "Top 10" else "bottom"),
+            hide_index=True,
+            width="stretch",
+        )
     nota("Lojas abertas depois de 2016 têm menos tempo de venda e são penalizadas na receita por m².")
-with c10, st.container(border=True):
+with c10, cartao("10"):
     cabecalho_cartao("10 — Perfil de Clientes", "Qual a faixa etária e o gênero de quem compra?")
     metrica = st.radio(
         "Métrica", list(painel.METRICAS_PIRAMIDE), horizontal=True, label_visibility="collapsed", key="metrica10"
     )
-    plotar(painel.grafico_10(dados["perfil_de_clientes"], metrica), "g10")
+    plotar(painel.grafico_10(dados["perfil_de_clientes"], metrica, altura=400), "g10")
 
 st.caption(
     "Receita = quantidade × preço de tabela em US$ (cadastro atual, sem histórico de preços). "
