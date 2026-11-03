@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "duckdb": {
+      "command": "uvx",
+      "args": [
+        "--with",
+        "mcp==1.20.0",
+        "--with",
+        "pydantic<2.12",
+        "mcp-server-duckdb",
+        "--db-path",
+        "data/projeto.duckdb",
+        "--readonly"
+      ]
+    }
+  }
+}
